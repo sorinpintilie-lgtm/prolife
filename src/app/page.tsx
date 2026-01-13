@@ -779,10 +779,10 @@ export default function Home() {
                     </div>
                     <div className="mt-3 space-y-2 text-slate-700">
                       <div className="block">
-                        București: 0232215903 0735230853
+                        București: 0232215903 / 0735230853
                       </div>
                       <div className="block">
-                        Răducăneni: 0232279867 0736628565
+                        Răducăneni: 0232279867 / 0736628565
                       </div>
                     </div>
                   </div>
@@ -849,7 +849,7 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <div className="font-semibold mb-3">Specialități</div>
+              <div className="font-semibold mb-3">Specializări</div>
               <ul className="space-y-2 text-white/70">
                 <li><a href="#specialties" className="hover:text-white">Cardiologie</a></li>
                 <li><a href="#specialties" className="hover:text-white">Neurologie</a></li>
