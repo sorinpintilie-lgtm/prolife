@@ -91,6 +91,12 @@ const Icons = {
       <path d="m13 6 6 6-6 6" />
     </Icon>
   ),
+  ArrowLeft: () => (
+    <Icon>
+      <path d="M5 12h12" />
+      <path d="m11 6-6 6 6 6" />
+    </Icon>
+  ),
 }
 
 function cx(...c: Array<string | boolean | undefined>) {
@@ -200,7 +206,7 @@ function DoctorsWithFilters() {
             className="w-full flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
           >
             <span className="text-sm font-semibold text-slate-900">
-              {active === 'Toți' ? 'Toate specialitățile' : active}
+              {active === 'Toți' ? 'Toate specializările' : active}
             </span>
             <span className="text-slate-500 text-lg">{specOpen ? '▲' : '▼'}</span>
           </button>
@@ -219,7 +225,7 @@ function DoctorsWithFilters() {
                       active === s ? 'bg-teal-600 text-white' : 'hover:bg-gray-50 text-slate-800'
                     }`}
                   >
-                    {s === 'Toți' ? 'Toate specialitățile' : s}
+                    {s === 'Toți' ? 'Toate specializările' : s}
                   </button>
                 ))}
               </div>
@@ -227,19 +233,41 @@ function DoctorsWithFilters() {
           )}
         </div>
         <div className="hidden md:flex justify-center">
-          <div className="flex gap-2 overflow-x-auto max-w-full px-2 py-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
-            {specialties.slice(1).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setActive(s)}
-                className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  active === s ? 'bg-teal-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex max-w-full bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                const container = document.querySelector('.specialties-container');
+                if (container) container.scrollBy({ left: -200, behavior: 'smooth' });
+              }}
+              className="flex-shrink-0 h-full px-3 rounded-l-2xl bg-teal-600 hover:bg-teal-700 transition-colors flex items-center justify-center text-white"
+            >
+              <Icons.ArrowLeft />
+            </button>
+            <div className="flex gap-2 specialties-container overflow-x-auto scrollbar-hide px-2 py-2">
+              {specialties.slice(1).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setActive(s)}
+                  className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    active === s ? 'bg-teal-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const container = document.querySelector('.specialties-container');
+                if (container) container.scrollBy({ left: 200, behavior: 'smooth' });
+              }}
+              className="flex-shrink-0 h-full px-3 rounded-r-2xl bg-teal-600 hover:bg-teal-700 transition-colors flex items-center justify-center text-white"
+            >
+              <Icons.ArrowRight />
+            </button>
           </div>
         </div>
       </div>
@@ -551,25 +579,33 @@ export default function Home() {
               {
                 title: 'Ambulatoriu clinic',
                 desc: 'Specialități multiple pentru consultații și tratamente.',
-                icon: <Icons.Hospital />,
+                image: '/images/physiotherapist-taking-notes-while-attending-senio-2026-01-09-11-38-36-utc.jpg',
               },
               {
                 title: 'Spitalizare de zi',
                 desc: 'Proceduri medicale fără internare prelungită.',
-                icon: <Icons.Steth />,
+                image: '/images/attending-physician-conducts-a-survey-of-the-patie-2026-01-05-06-14-42-utc.jpg',
               },
               {
                 title: 'Medicina muncii',
                 desc: 'Evaluări pentru angajare și sănătate ocupațională.',
-                icon: <Icons.Clipboard />,
+                image: '/images/doctor-measuring-patient-pulse-with-a-smartwatch-d-2026-01-11-10-56-11-utc.jpg',
               },
             ].map((s) => (
-              <div key={s.title} className={cx(CARD, 'p-7 text-center')}>
-                <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 ring-1 ring-teal-600/10">
-                  {s.icon}
+              <div key={s.title} className={cx(CARD, 'p-0 text-center overflow-hidden')}>
+                <div className="relative h-48 w-full">
+                  <Image
+                    src={s.image}
+                    alt={s.title}
+                    fill
+                    className="object-cover"
+                    loading="lazy"
+                  />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900">{s.title}</h3>
-                <p className="mt-2 text-slate-600">{s.desc}</p>
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-slate-900">{s.title}</h3>
+                  <p className="mt-2 text-slate-600">{s.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -582,7 +618,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-4">Medici</h2>
           <p className="text-center text-gray-600 mb-10">
-            Alege specialitatea și găsește medicul potrivit.
+            Alege specializarea și găsește medicul potrivit.
           </p>
 
           <DoctorsWithFilters />
@@ -781,10 +817,10 @@ export default function Home() {
                     <span className="text-red-700"><Icons.Alert /></span> Urgențe medicale
                   </div>
                   <p className="mt-3 text-sm text-red-800 leading-relaxed">
-                    Dacă este o urgență, sunați imediat la 112 sau mergeți la cea mai apropiată unitate de primiri urgențe.
+                    Dacă este o urgență, sunați imediat la 0735230853.
                   </p>
                   <div className="mt-3 inline-flex items-center justify-center rounded-2xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white">
-                    Sună 112
+                    Sună
                   </div>
                 </div>
               </div>
