@@ -426,7 +426,7 @@ export default function Home() {
       {/* Header */}
       <header
         className={cx(
-          'fixed top-0 left-0 right-0 z-30 transition-all',
+          'header left-0 right-0 z-40 transition-all',
           scrolled
             ? 'bg-white/90 backdrop-blur-md shadow-sm ring-1 ring-black/5'
             : 'bg-transparent'
@@ -443,7 +443,7 @@ export default function Home() {
             />
           </a>
 
-          <nav className={`hidden md:flex items-center gap-8 text-sm ${scrolled ? 'text-slate-700' : 'text-white'}`}>
+          <nav className={`hidden md:flex items-center gap-8 text-sm ${scrolled ? 'text-slate-700' : 'text-black'}`}>
             <a href="#services" className="hover:text-teal-700">
               Servicii
             </a>
