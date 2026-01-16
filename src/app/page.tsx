@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 
 /** Tiny, consistent outline icons (no extra deps) */
 function Icon({ children }: { children: React.ReactNode }) {
@@ -103,6 +103,32 @@ function cx(...c: Array<string | boolean | undefined>) {
   return c.filter(Boolean).join(' ')
 }
 
+function useScrollAnimation(ref: React.RefObject<Element>, threshold = 0, rootMargin = '0px') {
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    const checkInitialVisibility = () => {
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+        const isInView = rect.top < windowHeight && rect.bottom > 0;
+        if (isInView) setIsVisible(true);
+      }
+    };
+    checkInitialVisibility();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold, rootMargin }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [ref, threshold, rootMargin]);
+  return isVisible;
+}
+
 const CARD =
   'bg-white rounded-2xl shadow-sm ring-1 ring-black/5 hover:shadow-md transition-all'
 const INPUT =
@@ -178,16 +204,35 @@ function DoctorsWithFilters() {
   const [active, setActive] = useState('Toți');
   const [specOpen, setSpecOpen] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<typeof doctors[0] | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const doctorsCardsRef = useRef<HTMLDivElement>(null);
+  const doctorsCardsScrollRef = useRef<HTMLDivElement>(null);
+  const doctorsCardsVisible = useScrollAnimation(doctorsCardsRef);
 
   useEffect(() => {
-    const checkDesktop = () => {
-      const desktop = window.innerWidth >= 768;
-      setIsDesktop(desktop);
-      setActive(desktop ? 'Cardiologie' : 'Toți');
+    const desktop = window.innerWidth >= 768;
+    setIsDesktop(desktop);
+    setActive(desktop ? 'Cardiologie' : 'Toți');
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (doctorsCardsScrollRef.current) {
+        const scrollLeft = doctorsCardsScrollRef.current.scrollLeft;
+        const width = doctorsCardsScrollRef.current.clientWidth;
+        const index = Math.round(scrollLeft / width);
+        setActiveIndex(index);
+      }
     };
-    checkDesktop();
-    window.addEventListener('resize', checkDesktop);
-    return () => window.removeEventListener('resize', checkDesktop);
+    if (doctorsCardsScrollRef.current) {
+      doctorsCardsScrollRef.current.addEventListener('scroll', handleScroll);
+    }
+    return () => {
+      if (doctorsCardsScrollRef.current) {
+        doctorsCardsScrollRef.current.removeEventListener('scroll', handleScroll);
+      }
+    };
   }, []);
 
   const filtered = doctors.filter((d) => {
@@ -271,88 +316,105 @@ function DoctorsWithFilters() {
           </div>
         </div>
       </div>
-      <div className="flex overflow-x-auto gap-6 pb-4 sm:hidden">
-        {filtered.slice(0, 10).map((doctor) => ( // limit for mobile
-          <div
-            key={doctor.name}
-            className="flex-shrink-0 w-64 bg-white p-6 rounded-2xl shadow-sm ring-1 ring-black/5 hover:shadow-md hover:-translate-y-0.5 transition-all"
-          >
-            <div className="flex items-center gap-4">
-              <Image
-                src={doctor.image}
-                alt={doctor.name}
-                width={72}
-                height={72}
-                className="rounded-2xl object-cover ring-1 ring-black/10"
-              />
-              <div className="min-w-0">
-                <div className="font-semibold text-slate-900 truncate">{doctor.name}</div>
-                <div className="text-sm text-teal-700">{doctor.specialty}</div>
-                <div className="text-xs text-slate-500 mt-1">Programări L–V</div>
+      <div ref={doctorsCardsRef}>
+        <div ref={doctorsCardsScrollRef} className={cx("flex overflow-x-auto gap-0 snap-x snap-mandatory pb-4 sm:hidden pre-fade-in-up", doctorsCardsVisible && "animate-fade-in-up")}>
+          {filtered.slice(0, 10).map((doctor, i) => ( // limit for mobile
+            <div
+              key={doctor.name}
+              className={cx("flex-shrink-0 w-full snap-start bg-white p-6 rounded-2xl shadow-sm ring-1 ring-black/5 hover:shadow-md hover:-translate-y-0.5 transition-all hover-lift pre-bounce-in", doctorsCardsVisible && "animate-bounce-in")}
+              style={doctorsCardsVisible ? { animationDelay: `${i * 0.05}s` } : {}}
+            >
+              <div className="flex items-center gap-4">
+                <Image
+                  src={doctor.image}
+                  alt={doctor.name}
+                  width={72}
+                  height={72}
+                  className="rounded-2xl object-cover ring-1 ring-black/10"
+                />
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{doctor.name}</div>
+                  <div className="text-sm text-teal-700">{doctor.specialty}</div>
+                  <div className="text-xs text-slate-500 mt-1">Programări L–V</div>
+                </div>
+              </div>
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={() => setSelectedDoctor(doctor)}
+                  className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+                >
+                  Detalii
+                </button>
+                <a
+                  href="#contact"
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+                >
+                  Programează
+                </a>
               </div>
             </div>
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => setSelectedDoctor(doctor)}
-                className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
-              >
-                Detalii
-              </button>
-              <a
-                href="#contact"
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-              >
-                Programează
-              </a>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((doctor) => (
-          <div
-            key={doctor.name}
-            className="bg-white p-6 rounded-2xl shadow-sm ring-1 ring-black/5 hover:shadow-md hover:-translate-y-0.5 transition-all"
-          >
-            <div className="flex items-center gap-4">
-              <Image
-                src={doctor.image}
-                alt={doctor.name}
-                width={72}
-                height={72}
-                className="rounded-2xl object-cover ring-1 ring-black/10"
-                loading="lazy"
-                placeholder="blur"
-                blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jpQ0AAAAASUVORK5CYII="
-                quality={85}
-                priority={false}
-                sizes="(max-width: 768px) 72px, 72px"
-                unoptimized={false}
-                fetchPriority="low"
-                style={{ objectFit: 'cover' }}
-              />
-              <div className="min-w-0">
-                <div className="font-semibold text-slate-900 truncate">{doctor.name}</div>
-                <div className="text-sm text-teal-700">{doctor.specialty}</div>
-                <div className="text-xs text-slate-500 mt-1">Programări L–V</div>
+          ))}
+        </div>
+        <div className="flex justify-center items-center gap-1 mt-4 sm:hidden">
+          {filtered.slice(0, 10).map((_, i) => (
+            <div
+              key={i}
+              className={`rounded-full cursor-pointer ${i === activeIndex ? 'w-3 h-3 bg-teal-600' : 'w-2 h-2 bg-gray-300'}`}
+              onClick={() => {
+                if (doctorsCardsScrollRef.current) {
+                  doctorsCardsScrollRef.current.scrollTo({ left: i * doctorsCardsScrollRef.current.clientWidth, behavior: 'smooth' });
+                }
+              }}
+            />
+          ))}
+        </div>
+        <div className={cx("hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6 pre-fade-in-up", doctorsCardsVisible && "animate-fade-in-up")}>
+          {filtered.map((doctor, i) => (
+            <div
+              key={doctor.name}
+              className={cx("bg-white p-6 rounded-2xl shadow-sm ring-1 ring-black/5 hover:shadow-md hover:-translate-y-0.5 transition-all hover-lift pre-bounce-in", doctorsCardsVisible && "animate-bounce-in")}
+              style={doctorsCardsVisible ? { animationDelay: `${i * 0.05}s` } : {}}
+            >
+              <div className="flex items-center gap-4">
+                <Image
+                  src={doctor.image}
+                  alt={doctor.name}
+                  width={72}
+                  height={72}
+                  className="rounded-2xl object-cover ring-1 ring-black/10"
+                  loading="lazy"
+                  placeholder="blur"
+                  blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jpQ0AAAAASUVORK5CYII="
+                  quality={85}
+                  priority={false}
+                  sizes="(max-width: 768px) 72px, 72px"
+                  unoptimized={false}
+                  fetchPriority="low"
+                  style={{ objectFit: 'cover' }}
+                />
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{doctor.name}</div>
+                  <div className="text-sm text-teal-700">{doctor.specialty}</div>
+                  <div className="text-xs text-slate-500 mt-1">Programări L–V</div>
+                </div>
+              </div>
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={() => setSelectedDoctor(doctor)}
+                  className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+                >
+                  Detalii
+                </button>
+                <a
+                  href="#contact"
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+                >
+                  Programează
+                </a>
               </div>
             </div>
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => setSelectedDoctor(doctor)}
-                className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
-              >
-                Detalii
-              </button>
-              <a
-                href="#contact"
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-              >
-                Programează
-              </a>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
       {filtered.length === 0 && (
         <div className="text-center text-slate-600 mt-10">
@@ -361,7 +423,7 @@ function DoctorsWithFilters() {
       )}
 
       {selectedDoctor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedDoctor(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDoctor(null)}>
           <div className="max-w-md w-full bg-white rounded-2xl shadow-xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -420,6 +482,25 @@ export default function Home() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const heroRef = useRef<HTMLDivElement>(null);
+  const servicesRef = useRef<HTMLDivElement>(null);
+  const servicesCardsRef = useRef<HTMLDivElement>(null);
+  const doctorsRef = useRef<HTMLDivElement>(null);
+  const faqRef = useRef<HTMLDivElement>(null);
+  const locationsRef = useRef<HTMLDivElement>(null);
+  const contactRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+
+  const heroVisible = useScrollAnimation(heroRef);
+  const servicesVisible = useScrollAnimation(servicesRef);
+  const servicesCardsVisible = useScrollAnimation(servicesCardsRef);
+  const doctorsVisible = useScrollAnimation(doctorsRef);
+  const faqVisible = useScrollAnimation(faqRef);
+  const locationsVisible = useScrollAnimation(locationsRef);
+  const contactVisible = useScrollAnimation(contactRef);
+  const footerVisible = useScrollAnimation(footerRef);
+  const stickyVisible = useScrollAnimation(stickyRef);
 
   return (
     <main className="min-h-screen pb-24 md:pb-0 bg-white">
@@ -439,7 +520,7 @@ export default function Home() {
               alt="Pro Life Clinics Logo"
               width={64}
               height={64}
-              className="rounded-xl"
+              className="w-12 h-12 md:w-16 md:h-16 rounded-xl"
             />
           </a>
 
@@ -521,12 +602,12 @@ export default function Home() {
 
         <div className="relative z-10 w-full">
           <div className="max-w-6xl mx-auto px-4 pt-28 pb-12">
-            <div className="max-w-3xl">
-              <h1 className="text-white text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-[1.05]">
+            <div ref={heroRef} className={cx("max-w-3xl pre-fade-in-up", heroVisible && "animate-fade-in-up")}>
+              <h1 className={cx("text-white text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-[1.05] pre-fade-in-up", heroVisible && "animate-fade-in-up animate-delay-100")}>
                 Servicii medicale complete,
                 <br className="hidden sm:block" /> într-un singur loc.
               </h1>
-              <p className="mt-4 text-white/85 text-base sm:text-lg md:text-xl leading-relaxed">
+              <p className={cx("mt-4 text-white/85 text-base sm:text-lg md:text-xl leading-relaxed pre-fade-in-up", heroVisible && "animate-fade-in-up animate-delay-200")}>
                 Consult, investigații și îngrijire în specialități multiple, cu programare rapidă.
               </p>
 
@@ -541,16 +622,18 @@ export default function Home() {
                 ))}
               </div>
 
-              <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className={cx("mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4 pre-fade-in-up", heroVisible && "animate-fade-in-up animate-delay-300")}>
                 <a
                   href="#contact"
-                  className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-6 py-4 text-base font-semibold text-white shadow-sm hover:bg-teal-700"
+                  className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-6 py-4 text-base font-semibold text-white shadow-sm hover:bg-teal-700 hover-lift pre-bounce-in animate-bounce-in"
+                  style={{ animationDelay: '0.5s' }}
                 >
                   Programează-te
                 </a>
                 <a
                   href="tel:0735230853"
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white hover:text-slate-900 transition-colors"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white hover:text-slate-900 transition-colors hover-lift pre-bounce-in animate-bounce-in"
+                  style={{ animationDelay: '0.6s' }}
                 >
                   Sună acum
                 </a>
@@ -566,15 +649,15 @@ export default function Home() {
 
       {/* Services */}
       <section id="services" className="scroll-mt-24 py-16 px-4 bg-slate-50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900">
+        <div ref={servicesRef} className={cx("max-w-6xl mx-auto pre-fade-in-up", servicesVisible && "animate-fade-in-up")}>
+          <h2 className={cx("text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900 pre-fade-in-up", servicesVisible && "animate-fade-in-up")}>
             Serviciile Noastre Principale
           </h2>
-          <p className="mt-3 text-center text-slate-600">
+          <p className={cx("mt-3 text-center text-slate-600 pre-fade-in-up", servicesVisible && "animate-fade-in-up animate-delay-100")}>
             Oferim îngrijire medicală completă sub același acoperiș.
           </p>
 
-          <div className="mt-12 grid md:grid-cols-3 gap-6">
+          <div ref={servicesCardsRef} className="mt-12 grid md:grid-cols-3 gap-6">
             {[
               {
                 title: 'Ambulatoriu clinic',
@@ -591,33 +674,37 @@ export default function Home() {
                 desc: 'Evaluări pentru angajare și sănătate ocupațională.',
                 image: '/images/doctor-measuring-patient-pulse-with-a-smartwatch-d-2026-01-11-10-56-11-utc.jpg',
               },
-            ].map((s) => (
-              <div key={s.title} className={cx(CARD, 'p-0 text-center overflow-hidden')}>
-                <div className="relative h-48 w-full">
-                  <Image
-                    src={s.image}
-                    alt={s.title}
-                    fill
-                    className="object-cover"
-                    loading="lazy"
-                  />
+            ].map((s, i) => {
+              const animations = ['animate-slide-in-left', 'animate-fade-in-up', 'animate-slide-in-right'];
+              const preAnimations = ['pre-slide-in-left', 'pre-fade-in-up', 'pre-slide-in-right'];
+              return (
+                <div key={s.title} className={cx(CARD, 'p-0 text-center overflow-hidden hover-lift', preAnimations[i] || 'pre-fade-in-up', servicesCardsVisible && (animations[i] || 'animate-fade-in-up'))} style={servicesCardsVisible ? { animationDelay: `${i * 0.1}s` } : {}}>
+                  <div className="relative h-48 w-full">
+                    <Image
+                      src={s.image}
+                      alt={s.title}
+                      fill
+                      className="object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">{s.title}</h3>
+                    <p className="mt-2 text-slate-600">{s.desc}</p>
+                  </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold text-slate-900">{s.title}</h3>
-                  <p className="mt-2 text-slate-600">{s.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
 
       {/* Doctors Section (filters by specialty + search) */}
-      <section id="doctors" className="py-12 px-4 bg-slate-50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-4">Medici</h2>
-          <p className="text-center text-gray-600 mb-10">
+      <section id="doctors" className="scroll-mt-24 py-12 px-4 bg-slate-50">
+        <div ref={doctorsRef} className={cx("max-w-6xl mx-auto pre-fade-in-up", doctorsVisible && "animate-fade-in-up")}>
+          <h2 className={cx("text-3xl font-bold text-center mb-4 pre-fade-in-up", doctorsVisible && "animate-fade-in-up")}>Medici</h2>
+          <p className={cx("text-center text-gray-600 mb-10 pre-fade-in-up", doctorsVisible && "animate-fade-in-up animate-delay-100")}>
             Alege specializarea și găsește medicul potrivit.
           </p>
 
@@ -627,11 +714,11 @@ export default function Home() {
 
       {/* FAQ */}
       <section className="py-16 px-4 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900">
+        <div ref={faqRef} className={cx("max-w-4xl mx-auto pre-fade-in-up", faqVisible && "animate-fade-in-up")}>
+          <h2 className={cx("text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900 pre-fade-in-up", faqVisible && "animate-fade-in-up")}>
             Întrebări Frecvente
           </h2>
-          <p className="mt-3 text-center text-slate-600">
+          <p className={cx("mt-3 text-center text-slate-600 pre-fade-in-up", faqVisible && "animate-fade-in-up animate-delay-100")}>
             Răspunsuri rapide la cele mai comune întrebări.
           </p>
 
@@ -647,17 +734,18 @@ export default function Home() {
               },
               {
                 q: 'Cum ajung la clinică?',
-                a: 'Folosiți butoanele “Deschide în Maps” din secțiunea Contact pentru locația dorită.',
+                a: 'Folosiți butoanele "Deschide în Maps" din secțiunea Contact pentru locația dorită.',
               },
               {
                 q: 'Cum reprogramăm o vizită?',
                 a: 'Ne puteți contacta telefonic sau prin email și reprogramăm în funcție de disponibilitate.',
               },
-            ].map((item) => (
+            ].map((item, i) => (
               <details
                 key={item.q}
                 open={false}
-                className={cx(CARD, 'group p-6')}
+                className={cx(CARD, 'group p-6 hover-lift pre-fade-in-up', faqVisible && 'animate-fade-in-up')}
+                style={faqVisible ? { animationDelay: `${i * 0.1}s` } : {}}
               >
                 <summary className="cursor-pointer list-none font-semibold text-slate-900 flex items-center justify-between">
                   <span>{item.q}</span>
@@ -674,13 +762,13 @@ export default function Home() {
       </section>
 
       {/* Locations */}
-      <section id="locations" className="py-16 px-4 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900 mb-8">
+      <section id="locations" className="scroll-mt-24 py-16 px-4 bg-white">
+        <div ref={locationsRef} className={cx("max-w-6xl mx-auto pre-fade-in-up", locationsVisible && "animate-fade-in-up")}>
+          <h2 className={cx("text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900 mb-8 pre-fade-in-up", locationsVisible && "animate-fade-in-up")}>
             Locațiile Noastre
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className={cx(CARD, 'p-6')}>
+            <div className={cx(CARD, 'p-6 hover-lift pre-slide-in-left', locationsVisible && 'animate-slide-in-left')}>
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Adresa Clinică București</h3>
               <p className="text-slate-600 mb-4">
                 Anastasie Panu, nr.28, bl 2b, mezanin, deasupra băncii OTP.
@@ -696,7 +784,7 @@ export default function Home() {
                 className="rounded-lg"
               ></iframe>
             </div>
-            <div className={cx(CARD, 'p-6')}>
+            <div className={cx(CARD, 'p-6 hover-lift pre-slide-in-right', locationsVisible && 'animate-slide-in-right animate-delay-100')}>
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Adresa Clinică Răducăneni</h3>
               <p className="text-slate-600 mb-4">
                 În cadrul centrului Medico – Social Răducăneni.
@@ -718,18 +806,18 @@ export default function Home() {
 
       {/* Contact */}
       <section id="contact" className="scroll-mt-24 py-16 px-4 bg-slate-50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900">
+        <div ref={contactRef} className={cx("max-w-6xl mx-auto pre-fade-in-up", contactVisible && "animate-fade-in-up")}>
+          <h2 className={cx("text-3xl sm:text-4xl font-semibold tracking-tight text-center text-slate-900 pre-fade-in-up", contactVisible && "animate-fade-in-up")}>
             Contact
           </h2>
-          <p className="mt-3 mb-8 text-center text-slate-600">
+          <p className={cx("mt-3 mb-8 text-center text-slate-600 pre-fade-in-up", contactVisible && "animate-fade-in-up animate-delay-100")}>
             Scrie-ne și revenim cât mai repede.
           </p>
 
           <div className="grid md:grid-cols-2 gap-6 items-stretch">
             {/* Form and Details */}
             {/* Form */}
-            <div className={cx(CARD, 'p-8')}>
+            <div className={cx(CARD, 'p-8 hover-lift pre-fade-in-up', contactVisible && 'animate-fade-in-up')}>
               <form className="space-y-5">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <input type="text" placeholder="Nume și prenume" className={INPUT} />
@@ -771,11 +859,11 @@ export default function Home() {
 
             {/* Details */}
             <div className="space-y-4">
-              <div className={cx(CARD, 'p-10 min-h-[400px]')}>
+              <div className={cx(CARD, 'p-10 min-h-[400px] hover-lift pre-fade-in-up', contactVisible && 'animate-fade-in-up animate-delay-100')}>
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div>
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <span className="text-teal-700"><Icons.Phone /></span> Telefon
+                      <span className="text-teal-700 animate-float"><Icons.Phone /></span> Telefon
                     </div>
                     <div className="mt-3 space-y-2 text-slate-700">
                       <div className="block">
@@ -796,7 +884,7 @@ export default function Home() {
                         bucuresti@prolife.com
                       </div>
                       <div className="block">
-                        raducăneni@prolife.com
+                        raducaneni@prolife.com
                       </div>
                     </div>
                   </div>
@@ -833,41 +921,50 @@ export default function Home() {
 
 
       {/* Footer */}
-      <footer className="bg-slate-950 text-white py-14 px-4">
+      <footer ref={footerRef} className={cx("bg-slate-950 text-white py-14 px-4 pre-fade-in-up", footerVisible && "animate-fade-in-up")}>
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col items-center text-center">
             {/* Removed title and description */}
           </div>
 
-          <div className="mt-10 grid sm:grid-cols-2 md:grid-cols-4 gap-8 text-sm">
+          <div className={cx("mt-10 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm pre-fade-in-up", footerVisible && "animate-fade-in-up animate-delay-100")}>
             <div>
-              <div className="font-semibold mb-3">Servicii</div>
+              <div className="flex items-center mb-3">
+                <Image
+                  src="/images/cropped-Logo-nou-cerc-e1667761503676.png"
+                  alt="Pro Life Clinics Logo"
+                  width={64}
+                  height={64}
+                  className="w-16 h-16 mr-3 rounded-lg"
+                />
+                <div className="font-semibold text-lg">Pro Life Clinics</div>
+              </div>
+              <p className="text-white/70">Servicii medicale complete,<br />într-un singur loc.</p>
+            </div>
+            <div>
+              <div className="font-semibold mb-3">Sitemap</div>
               <ul className="space-y-2 text-white/70">
-                <li><a href="#services" className="hover:text-white">Ambulatoriu</a></li>
-                <li><a href="#services" className="hover:text-white">Spitalizare de zi</a></li>
-                <li><a href="#services" className="hover:text-white">Medicină muncii</a></li>
+                <li><a href="#services" className="hover:text-white">Servicii</a></li>
+                <li><a href="#doctors" className="hover:text-white">Medici</a></li>
+                <li><a href="#locations" className="hover:text-white">Locațiile Noastre</a></li>
+                <li><a href="#contact" className="hover:text-white">Contact</a></li>
               </ul>
             </div>
             <div>
-              <div className="font-semibold mb-3">Specializări</div>
-              <ul className="space-y-2 text-white/70">
-                <li><a href="#specialties" className="hover:text-white">Cardiologie</a></li>
-                <li><a href="#specialties" className="hover:text-white">Neurologie</a></li>
-                <li><a href="#specialties" className="hover:text-white">Oftalmologie</a></li>
-              </ul>
+              <div className="font-semibold mb-3">Prolife București</div>
+              <div className="text-white/70 space-y-1">
+                <div>Telefon: 0232215903 / 0735230853</div>
+                <div>Email: bucuresti@prolife.com</div>
+                <div>Adresa: Strada Maica Domnului Nr. 2, Bl. T 58, Sector 2, București</div>
+              </div>
             </div>
             <div>
-              <div className="font-semibold mb-3">Medici</div>
-              <ul className="space-y-2 text-white/70">
-                <li><a href="#doctors" className="hover:text-white">Echipa noastră</a></li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-3">Contact</div>
-              <ul className="space-y-2 text-white/70">
-                <li><a href="#contact" className="hover:text-white">Formular</a></li>
-                <li><a href="#contact" className="hover:text-white">Detalii</a></li>
-              </ul>
+              <div className="font-semibold mb-3">Prolife Rădicăneni</div>
+              <div className="text-white/70 space-y-1">
+                <div>Telefon: 0232279867 / 0736628565</div>
+                <div>Email: ranucaneni@prolife.com</div>
+                <div>Adresa: Com.Raducaneni, Str. Ștefan cel Mare și Sfânt Nr.2</div>
+              </div>
             </div>
           </div>
 
@@ -890,17 +987,17 @@ export default function Home() {
 
 
       {/* Sticky CTA (mobile) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-slate-200 p-3 md:hidden">
+      <div ref={stickyRef} className={cx("fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-slate-200 p-3 md:hidden pre-fade-in-up", stickyVisible && "animate-fade-in-up")}>
         <div className="max-w-6xl mx-auto px-2 flex gap-3">
           <a
             href="#contact"
-            className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+            className="flex-1 inline-flex items-center justify-center rounded-2xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 hover-lift"
           >
             Programează-te
           </a>
           <a
             href="tel:0735230853"
-            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 hover-lift"
           >
             Sună
           </a>
